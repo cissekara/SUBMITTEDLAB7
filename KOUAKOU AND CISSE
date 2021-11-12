@@ -1,0 +1,164 @@
+#This lab is for CISSE SERIGNE and KOUAKOU HERVE ALLAH on NOV 12, 2021
+
+load("/cloud/project/Household_Pulse_data.RData")
+detach()
+attach(Household_Pulse_data)
+summary(Household_Pulse_data)
+length(Household_Pulse_data)
+Household_Pulse_data$vaxx <- (Household_Pulse_data$RECVDVACC == "yes got vaxx")
+summary(Household_Pulse_data$vaxx)
+#~Our selected subgroup is Adults between ages 21 up to and including 76. 
+#We wanted to measure the awareness related to the decision og getting vaccinated against COVID19S
+#We chose people with at least good health for our subset.
+#We notce that 60326 in the population sample has agreed to be vaccinated across the regions, regardless of races or sexual orientations.
+use_varb <- (Household_Pulse_data$TBIRTH_YEAR >= 1945) & (Household_Pulse_data$TBIRTH_YEAR <= 2000)
+summary(use_varb)
+dat_use1 <- subset(Household_Pulse_data, use_varb)
+summary(dat_use1)
+#  Mode   FALSE    TRUE 
+#logical    4922   64192 
+#In relation to education variable,  we have 64192 in our data sets responding to this survey. 
+
+d_educ <- data.frame(model.matrix(~ dat_use1$EEDUC))
+summary(d_educ)
+# X.Intercept. dat_use1.EEDUCsome.hs dat_use1.EEDUCHS.diploma dat_use1.EEDUCsome.coll dat_use1.EEDUCassoc.deg dat_use1.EEDUCbach.deg
+# Min.   :1     Min.   :0.00000       Min.   :0.0000           Min.   :0.000           Min.   :0.0000          Min.   :0.000         
+# 1st Qu.:1     1st Qu.:0.00000       1st Qu.:0.0000           1st Qu.:0.000           1st Qu.:0.0000          1st Qu.:0.000         
+# Median :1     Median :0.00000       Median :0.0000           Median :0.000           Median :0.0000          Median :0.000         
+# Mean   :1     Mean   :0.01295       Mean   :0.1109           Mean   :0.208           Mean   :0.1118          Mean   :0.296         
+# 3rd Qu.:1     3rd Qu.:0.00000       3rd Qu.:0.0000           3rd Qu.:0.000           3rd Qu.:0.0000          3rd Qu.:1.000         
+# Max.   :1     Max.   :1.00000       Max.   :1.0000           Max.   :1.000           Max.   :1.0000          Max.   :1.000         
+
+# dat_use1.EEDUCadv.deg
+# Min.   :0.0000       
+# 1st Qu.:0.0000       
+# Median :0.0000       
+# Mean   :0.2547       
+# 3rd Qu.:1.0000       
+# Max.   :1.0000 
+
+#By using mean to compare their attendance to. this survey, we can tell that peoples with higher / advanced education levels tend to be more willing to decide on their health conditions in terms of vaccinations
+
+levels(dat_use1$EEDUC)
+d_marstat <- data.frame(model.matrix(~ dat_use1$MS))
+d_race <- data.frame(model.matrix(~ dat_use1$RRACE))
+d_hispanic <- data.frame(model.matrix(~ dat_use1$RHISPANIC))
+d_gender <- data.frame(model.matrix(~ dat_use1$GENID_DESCRIBE))
+d_region <- data.frame(model.matrix(~ dat_use1$REGION))
+
+d_vaxx <- data.frame(model.matrix(~ dat_use1$vaxx))
+# check number of obs to see that this snips off NA values
+
+# note that, depending on your subgroup, this might snip off some columns so make sure to check summary() of each -- don't want Min = Max = 0!
+
+dat_for_analysis_sub <- data.frame(d_vaxx[,2],
+  dat_use1$TBIRTH_YEAR[!is.na(dat_use1$vaxx)],
+  d_educ[!is.na(dat_use1$vaxx),2:7],
+  d_marstat[!is.na(dat_use1$vaxx),2:6],
+  d_race[!is.na(dat_use1$vaxx),2:4],
+  d_hispanic[!is.na(dat_use1$vaxx),2],
+  d_gender[!is.na(dat_use1$vaxx),2:5],
+  d_region[!is.na(dat_use1$vaxx),2:4])
+# In order to police up the output and for better use of the variables, we decided to analyze the Hispanic community including levels of educations
+#gender, their marital status ( with all options of being single, married, single parents, divorced and so on), across the 4 regions 
+names(dat_for_analysis_sub) <- sub("dat_use1.","",names(dat_for_analysis_sub))
+names(dat_for_analysis_sub)[1] <-"vaxx"
+names(dat_for_analysis_sub)[2] <-"TBIRTH_YEAR"
+names(dat_for_analysis_sub)[17] <- "Hispanic"
+
+# Here at this stage, we have decide to to rename the output composition. ANything that may create confusion is being avoided. The facoitrs that support my research are mainly
+#Years of birth ( targets are between 1945 and 2000), the race is Hispanic and their Vaccinatation status od ( yes, I am vaccinated or NO, I am not or NA= NO ANSWER or just silence)
+
+require("standardize")
+set.seed(654321)
+NN <-length (dat_for_analysis_sub$vaxx)
+summary(dat_for_analysis_sub$vaxx)
+#  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#  0.0000  1.0000  1.0000  0.8695  1.0000  1.0000 
+#Our focused category is vaccinated up to 86%
+restrict_1 <- (runif(NN) < 0.1) 
+# use 10% as training data
+summary(restrict_1)
+print(restrict_1)
+
+dat_train <- subset(dat_for_analysis_sub, restrict_1)
+summary(dat_train)
+
+dat_test <- subset(dat_for_analysis_sub, !restrict_1)
+summary(dat_test)
+sobj <- standardize(vaxx ~ TBIRTH_YEAR + EEDUCsome.hs + EEDUCHS.diploma + EEDUCsome.coll + EEDUCassoc.deg + EEDUCbach.deg + EEDUCadv.deg + 
+                      MSmarried + MSwidowed + MSdivorced + MSseparated + MSnever + RRACEBlack + RRACEAsian + RRACEOther +
+                      Hispanic + GENID_DESCRIBEmale + GENID_DESCRIBEfemale + GENID_DESCRIBEtransgender + GENID_DESCRIBEother +
+                      REGIONSouth + REGIONMidwest + REGIONWest, dat_train, family = binomial)
+
+s_dat_test <- predict(sobj, dat_test)
+summary(s_dat_test)
+
+model_lpm1 <- lm(sobj$formula, data = sobj$data)
+summary(model_lpm1)
+# Call:
+# lm(formula = sobj$formula, data = sobj$data)
+
+# Residuals:
+#   Min       1Q   Median       3Q      Max 
+# -1.08533  0.00622  0.09134  0.15475  0.73800 
+
+# Coefficients:
+#  Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)                 1.655781   0.120665  13.722  < 2e-16 ***
+#  TBIRTH_YEAR                -0.063281   0.004333 -14.606  < 2e-16 ***
+#  EEDUCsome.hs1              -0.061294   0.029204  -2.099 0.035873 *  
+#  EEDUCHS.diploma1           -0.023579   0.024810  -0.950 0.341955    
+#  EEDUCsome.coll1            -0.001527   0.024516  -0.062 0.950332    
+#  EEDUCassoc.deg1             0.013934   0.024872   0.560 0.575340    
+#. EEDUCbach.deg1              0.045292   0.024444   1.853 0.063947 .  
+#  EEDUCadv.deg1               0.058716   0.024500   2.397 0.016579 *  
+#  MSmarried1                  0.201602   0.020379   9.893  < 2e-16 ***
+#   MSwidowed1                  0.196482   0.022681   8.663  < 2e-16 ***
+#  MSdivorced1                 0.189718   0.020900   9.077  < 2e-16 ***
+#  MSseparated1                0.184447   0.024542   7.516 6.44e-14 ***
+#   MSnever1                    0.215937   0.020774  10.394  < 2e-16 ***
+#   RRACEBlack1                -0.002627   0.007258  -0.362 0.717383    
+#   RRACEAsian1                 0.031723   0.008779   3.613 0.000305 ***
+#   RRACEOther1                -0.026961   0.009750  -2.765 0.005705 ** 
+#   Hispanic1                   0.007195   0.006756   1.065 0.286921    
+#  GENID_DESCRIBEmale1         0.088247   0.018090   4.878 1.10e-06 ***
+#  GENID_DESCRIBEfemale1       0.084553   0.018032   4.689 2.80e-06 ***
+#  GENID_DESCRIBEtransgender1  0.174398   0.042917   4.064 4.89e-05 ***
+#  GENID_DESCRIBEother1        0.039153   0.026227   1.493 0.135530    
+#. REGIONSouth1               -0.017468   0.006122  -2.853 0.004339 ** 
+#  REGIONMidwest1             -0.013426   0.006715  -2.000 0.045591 *  
+#  REGIONWest1                -0.004060   0.006129  -0.662 0.507690    
+---
+#  Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# #We notice here that regardless of race and based on their advanced literacy, all participants ( whether, males, females or transgenders)
+  #living across that regions are more willing to be vaccinated. Those variables are really significant  
+# Residual standard error: 0.311 on 6404 degrees of freedom
+# Multiple R-squared:  0.1154,	Adjusted R-squared:  0.1123 
+#. F-statistic: 36.34 on 23 and 6404 DF,  p-value: < 2.2e-16
+  
+plot(model_lpm1)
+exp(model_lpm1$coefficients)
+plot(coef(model_lpm1))
+pred_vals_lpm <- predict(model_lpm1, s_dat_test)
+pred_model_lpm1 <- (pred_vals_lpm > mean(pred_vals_lpm))
+table(pred = pred_model_lpm1, true = dat_test$vaxx)
+plot(pred_model_lpm1)
+# logit 
+model_logit1 <- glm(sobj$formula, family = binomial, data = sobj$data)
+summary(model_logit1)
+exp(model_logit1$coefficients)
+plot(coef(model_logit1))
+pred_vals <- predict(model_logit1, s_dat_test, type = "response")
+pred_model_logit1 <- (pred_vals > 0.5)
+table(pred = pred_model_logit1, true = dat_test$vaxx)
+#       true
+#pred        0     1
+#  FALSE   431   209
+#   TRUE   7148 49976
+#We set the research as yes I am vaxxxed or not I am NOT vaxxed. Based on the target, we have a population confirming at 499976. 
+
+exp(model_logit1$coefficients)
+plot(coef(model_logit1))
+plot(pred_model_logit1)
+
